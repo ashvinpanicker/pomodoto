@@ -73,7 +73,7 @@ export function getHourOfDay(): number {
 }
 
 export function generateId(): string {
-  return Math.random().toString(36).substring(2, 11);
+  return crypto.randomUUID();
 }
 
 export function beepSound(frequency = 440, duration = 0.3, volume = 0.3): void {
