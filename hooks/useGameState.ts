@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   checkNewAchievements,
@@ -99,6 +99,12 @@ export function useGameState(userId: string | null) {
     fetchAll();
   }, [fetchAll]);
 
+  // Stable ref so the Realtime subscription doesn't need fetchAll in its deps.
+  // If fetchAll is in deps, it re-runs whenever gameState changes (because completeSession
+  // captures gameState), which causes Supabase to throw "cannot add callbacks after subscribe".
+  const fetchAllRef = useRef(fetchAll);
+  fetchAllRef.current = fetchAll;
+
   // Realtime: re-fetch whenever sessions change (another device start/pause/cancel/complete)
   useEffect(() => {
     if (!userId) return;
@@ -107,11 +113,11 @@ export function useGameState(userId: string | null) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "sessions", filter: `user_id=eq.${userId}` },
-        () => { fetchAll(); }
+        () => { fetchAllRef.current(); }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [userId, supabase, fetchAll]);
+  }, [userId, supabase]);
 
   const completeSession = useCallback(
     async (sessionId: string, label: SessionLabel, durationMinutes: number, notes: string = "") => {
