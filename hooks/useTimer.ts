@@ -76,6 +76,8 @@ interface UseTimerOptions {
 
 export function useTimer({ onStart, onComplete, onCancel, activeSession, gameStateLoading }: UseTimerOptions = {}) {
   const [state, setState] = useState<TimerState>(DEFAULT_STATE);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initializedRef = useRef(false);
   const onStartRef = useRef(onStart);
@@ -189,17 +191,17 @@ export function useTimer({ onStart, onComplete, onCancel, activeSession, gameSta
 
   const start = useCallback(() => {
     const sessionId = generateId();
-    setState((prev) => {
-      onStartRef.current?.(sessionId, prev.label, prev.durationMinutes, prev.notes);
-      return {
-        status: "running",
-        durationMinutes: prev.durationMinutes,
-        remainingSeconds: prev.durationMinutes * 60,
-        label: prev.label,
-        notes: prev.notes,
-        startedAt: new Date(),
-        sessionId,
-      };
+    const { label, durationMinutes, notes } = stateRef.current;
+    // Fire DB write outside setState so React Strict Mode double-invocations don't double-insert
+    onStartRef.current?.(sessionId, label, durationMinutes, notes);
+    setState({
+      status: "running",
+      durationMinutes,
+      remainingSeconds: durationMinutes * 60,
+      label,
+      notes,
+      startedAt: new Date(),
+      sessionId,
     });
   }, []);
 
