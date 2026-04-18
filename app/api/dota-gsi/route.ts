@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Server-side only — uses service role key to validate GSI token without user session
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy-initialised so missing env vars only fail at request time, not at build time
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase admin env vars not set");
+  return createClient(url, key);
+}
 
 type GameState =
   | "DOTA_GAMERULES_STATE_INIT"
@@ -34,6 +36,8 @@ export async function POST(request: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 401 });
   }
+
+  const supabaseAdmin = getSupabaseAdmin();
 
   // Find user by their GSI token
   const { data: profile, error } = await supabaseAdmin
