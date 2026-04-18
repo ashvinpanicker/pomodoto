@@ -65,7 +65,7 @@ export default function LandingPage() {
           </motion.div>
           <div>
             <h1 className="text-3xl font-bold text-text-primary tracking-tight">
-              Pomo<span className="text-tomato">Dota</span>
+              Pomo<span className="text-tomato">Doto</span>
             </h1>
             <p className="text-text-secondary text-sm mt-1">
               Focus hard. Earn games. Stay consistent.

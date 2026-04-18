@@ -5,6 +5,7 @@ import type { TimerState, SessionLabel } from "@/types";
 import { generateId, playCompletionSound } from "@/lib/utils";
 
 const STORAGE_KEY = "pomo-dota-timer";
+const DEFAULT_TITLE = "PomoDoto — Focus. Earn. Play.";
 
 const DEFAULT_STATE: TimerState = {
   status: "idle",
@@ -22,19 +23,19 @@ function loadTimerState(): TimerState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
     const parsed = JSON.parse(raw);
-    // If timer was running, calculate drift
-    if (parsed.status === "running" && parsed.startedAt) {
-      const startedAt = new Date(parsed.startedAt);
-      const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 1000);
-      const original = parsed.durationMinutes * 60;
-      const remaining = Math.max(0, original - elapsed);
-      if (remaining === 0) {
-        return { ...DEFAULT_STATE, durationMinutes: parsed.durationMinutes, label: parsed.label };
-      }
-      return { ...parsed, remainingSeconds: remaining, startedAt };
-    }
     if (parsed.startedAt) {
       parsed.startedAt = new Date(parsed.startedAt);
+    }
+    // Recalculate remaining based on wall clock — handles closed tab / throttling
+    if (parsed.status === "running" && parsed.startedAt) {
+      const elapsed = Math.floor((Date.now() - new Date(parsed.startedAt).getTime()) / 1000);
+      const total = parsed.durationMinutes * 60;
+      const remaining = Math.max(0, total - elapsed);
+      if (remaining === 0) {
+        // Completed while tab was closed — treat as idle (session already lost)
+        return { ...DEFAULT_STATE, durationMinutes: parsed.durationMinutes, label: parsed.label };
+      }
+      return { ...parsed, remainingSeconds: remaining };
     }
     return { ...DEFAULT_STATE, ...parsed };
   } catch {
@@ -49,6 +50,12 @@ function saveTimerState(state: TimerState) {
   } catch {}
 }
 
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 interface UseTimerOptions {
   onComplete?: (sessionId: string, label: SessionLabel, duration: number, notes: string) => void;
 }
@@ -58,6 +65,22 @@ export function useTimer({ onComplete }: UseTimerOptions = {}) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+
+  // Helper that fires completion — callable from both interval and visibility handler
+  const triggerComplete = useCallback((prev: TimerState): TimerState => {
+    clearInterval(intervalRef.current!);
+    intervalRef.current = null;
+    playCompletionSound();
+    const sessionId = prev.sessionId ?? generateId();
+    onCompleteRef.current?.(sessionId, prev.label, prev.durationMinutes, prev.notes);
+    document.title = DEFAULT_TITLE;
+    return {
+      ...DEFAULT_STATE,
+      durationMinutes: prev.durationMinutes,
+      label: prev.label,
+      status: "completed",
+    };
+  }, []);
 
   // Load persisted state on mount
   useEffect(() => {
@@ -70,41 +93,55 @@ export function useTimer({ onComplete }: UseTimerOptions = {}) {
     saveTimerState(state);
   }, [state]);
 
-  // Countdown interval
+  // Update tab title when timer is active
   useEffect(() => {
     if (state.status === "running") {
-      intervalRef.current = setInterval(() => {
-        setState((prev) => {
-          if (prev.status !== "running") return prev;
-          if (prev.remainingSeconds <= 1) {
-            clearInterval(intervalRef.current!);
-            playCompletionSound();
-            const sessionId = prev.sessionId ?? generateId();
-            onCompleteRef.current?.(sessionId, prev.label, prev.durationMinutes, prev.notes);
-            return {
-              ...DEFAULT_STATE,
-              durationMinutes: prev.durationMinutes,
-              label: prev.label,
-              status: "completed",
-            };
-          }
-          return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
-        });
-      }, 1000);
+      document.title = `🍅 ${formatTime(state.remainingSeconds)} — PomoDoto`;
+    } else if (state.status === "paused") {
+      document.title = `⏸ ${formatTime(state.remainingSeconds)} — PomoDoto`;
+    } else if (state.status === "completed") {
+      document.title = `✅ Done! — PomoDoto`;
     } else {
+      document.title = DEFAULT_TITLE;
+    }
+  }, [state.status, state.remainingSeconds]);
+
+  // Countdown interval — calculates from startedAt so background throttling is irrelevant
+  useEffect(() => {
+    if (state.status !== "running") {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      return;
     }
+
+    const tick = () => {
+      setState((prev) => {
+        if (prev.status !== "running" || !prev.startedAt) return prev;
+        const elapsed = Math.floor((Date.now() - new Date(prev.startedAt).getTime()) / 1000);
+        const remaining = Math.max(0, prev.durationMinutes * 60 - elapsed);
+        if (remaining === 0) return triggerComplete(prev);
+        return { ...prev, remainingSeconds: remaining };
+      });
+    };
+
+    intervalRef.current = setInterval(tick, 500); // 500ms for snappier display
+
+    // When tab becomes visible again, immediately recalculate
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [state.status]);
+  }, [state.status, triggerComplete]);
 
   const start = useCallback(() => {
     setState((prev) => ({
@@ -125,10 +162,12 @@ export function useTimer({ onComplete }: UseTimerOptions = {}) {
   const resume = useCallback(() => {
     setState((prev) => {
       if (prev.status !== "paused") return prev;
+      // Shift startedAt forward so elapsed time excludes the pause duration
+      const elapsed = prev.durationMinutes * 60 - prev.remainingSeconds;
       return {
         ...prev,
         status: "running",
-        startedAt: new Date(Date.now() - (prev.durationMinutes * 60 - prev.remainingSeconds) * 1000),
+        startedAt: new Date(Date.now() - elapsed * 1000),
       };
     });
   }, []);

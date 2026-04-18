@@ -87,7 +87,7 @@ export default function ProfilePage() {
       )}
 
       <div className="text-center text-xs text-text-secondary space-y-1 pb-4">
-        <div className="font-semibold text-text-primary">PomoDota</div>
+        <div className="font-semibold text-text-primary">PomoDoto</div>
         <div>Focus hard. Earn games. Stay consistent.</div>
         <div>v0.1.0</div>
       </div>

@@ -3,31 +3,27 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "PomoDota — Focus. Earn. Play.",
-    template: "%s · PomoDota",
+    default: "PomoDoto — Focus. Earn. Play.",
+    template: "%s · PomoDoto",
   },
   description: "Gamified Pomodoro timer that rewards your focus sessions with Dota 2 game credits. Complete 2 Pomodoros to earn one game.",
   keywords: ["pomodoro", "dota 2", "productivity", "focus timer", "gamification"],
-  authors: [{ name: "PomoDota" }],
+  authors: [{ name: "PomoDoto" }],
   openGraph: {
-    title: "PomoDota — Focus. Earn. Play.",
+    title: "PomoDoto — Focus. Earn. Play.",
     description: "Turn your focus sessions into Dota game credits. 2 Pomodoros = 1 game earned.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary",
-    title: "PomoDota",
+    title: "PomoDoto",
     description: "Focus hard. Earn games. Stay consistent.",
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "PomoDota",
-  },
-  icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    title: "PomoDoto",
   },
 };
 

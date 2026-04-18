@@ -126,5 +126,5 @@ export async function POST(request: NextRequest) {
 
 // Dota 2 also sends GET requests as heartbeats
 export async function GET() {
-  return NextResponse.json({ ok: true, service: "pomo-dota-gsi" });
+  return NextResponse.json({ ok: true, service: "pomo-doto-gsi" });
 }

@@ -32,7 +32,7 @@ export function Sidebar({ profile }: SidebarProps) {
         </div>
         <div>
           <div className="font-bold text-text-primary tracking-tight">Pomo</div>
-          <div className="text-xs text-dota font-semibold -mt-0.5">DOTA</div>
+          <div className="text-xs text-dota font-semibold -mt-0.5">DOTO</div>
         </div>
       </div>
 
