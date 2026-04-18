@@ -12,7 +12,7 @@ import type { ActiveSession } from "@/hooks/useTimer";
 import type { SessionLabel } from "@/types";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const {
     gameState,
     loading: gameStateLoading,
@@ -23,6 +23,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     completeSession,
     dismissAchievements,
   } = useGameState(user?.id ?? null);
+
+  // Timer must not initialize until BOTH auth AND game state are fully loaded.
+  // If we let it initialize while userId is still null, gameState.activeSession
+  // will be null and the timer will fall back to localStorage before DB data arrives.
+  const timerLoading = authLoading || gameStateLoading;
 
   // Convert DB active session → timer format for cross-device restore
   const activeSession = useMemo<ActiveSession | null>(() => {
@@ -61,7 +66,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <TimerProvider
       activeSession={activeSession}
-      gameStateLoading={gameStateLoading}
+      gameStateLoading={timerLoading}
       onStart={handleStart}
       onComplete={handleComplete}
       onCancel={handleCancel}
