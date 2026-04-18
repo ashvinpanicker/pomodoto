@@ -2,7 +2,10 @@
 
 > Focus hard. Earn games. Stay consistent.
 
+https://pomodoto.vercel.app/
+
 A mobile-first Pomodoro timer gamified for ADHD brains. Complete focus sessions, earn Dota game time, level up, and build streaks. Fully vibecoded with Claude Sonnet 4.6
+
 
 ---
 
@@ -40,7 +43,7 @@ A mobile-first Pomodoro timer gamified for ADHD brains. Complete focus sessions,
 
 ```bash
 git clone <repo>
-cd pomo-dota
+cd pomodoto
 npm install
 ```
 
