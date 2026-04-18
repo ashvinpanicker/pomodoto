@@ -99,24 +99,38 @@ export function useGameState(userId: string | null) {
     fetchAll();
   }, [fetchAll]);
 
-  // Stable ref so the Realtime subscription doesn't need fetchAll in its deps.
-  // If fetchAll is in deps, it re-runs whenever gameState changes (because completeSession
-  // captures gameState), which causes Supabase to throw "cannot add callbacks after subscribe".
+  // Stable ref so the Realtime subscription never needs fetchAll in its deps.
   const fetchAllRef = useRef(fetchAll);
   fetchAllRef.current = fetchAll;
 
-  // Realtime: re-fetch whenever sessions change (another device start/pause/cancel/complete)
+  // Realtime: re-fetch whenever sessions change (another device start/pause/cancel/complete).
+  //
+  // Root-cause note: supabase.channel(name) returns an EXISTING channel object if one with
+  // that name is already registered — it does NOT create a fresh one. And removeChannel() is
+  // async (it waits for a server ack before removing from the registry). So when React runs
+  // cleanup → immediate re-setup, the old "joined" channel is still in the registry.
+  // Calling .on() on an already-joined channel throws "cannot add callbacks after subscribe".
+  //
+  // Fix: append Date.now() to the channel name so every setup gets a brand-new channel
+  // object, and wrap in try/catch so a stale-channel edge-case can't crash the whole app.
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`sessions-sync:${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "sessions", filter: `user_id=eq.${userId}` },
-        () => { fetchAllRef.current(); }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`sessions-sync:${userId}-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "sessions", filter: `user_id=eq.${userId}` },
+          () => { fetchAllRef.current(); }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn("[Realtime] Failed to subscribe:", err);
+    }
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [userId, supabase]);
 
   const completeSession = useCallback(
