@@ -128,6 +128,7 @@ export interface GameState {
   todaySessions: Session[];
   weeklyStats: DailyStats[];
   dotaSessions: DotaSession[];
+  activeSession: Session | null; // incomplete session = timer in progress
 }
 
 export const XP_PER_POMODORO = 50;

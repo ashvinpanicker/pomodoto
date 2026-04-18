@@ -56,15 +56,31 @@ function formatTime(seconds: number): string {
   return `${m}:${s}`;
 }
 
-interface UseTimerOptions {
-  onComplete?: (sessionId: string, label: SessionLabel, duration: number, notes: string) => void;
+export interface ActiveSession {
+  sessionId: string;
+  startedAt: Date;
+  durationMinutes: number;
+  label: SessionLabel;
+  notes: string;
 }
 
-export function useTimer({ onComplete }: UseTimerOptions = {}) {
+interface UseTimerOptions {
+  onStart?: (sessionId: string, label: SessionLabel, duration: number, notes: string) => void;
+  onComplete?: (sessionId: string, label: SessionLabel, duration: number, notes: string) => void;
+  onCancel?: (sessionId: string) => void;
+  /** Restore an in-progress session from DB (cross-device sync) */
+  activeSession?: ActiveSession | null;
+}
+
+export function useTimer({ onStart, onComplete, onCancel, activeSession }: UseTimerOptions = {}) {
   const [state, setState] = useState<TimerState>(DEFAULT_STATE);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onStartRef = useRef(onStart);
   const onCompleteRef = useRef(onComplete);
+  const onCancelRef = useRef(onCancel);
+  onStartRef.current = onStart;
   onCompleteRef.current = onComplete;
+  onCancelRef.current = onCancel;
 
   // Helper that fires completion — callable from both interval and visibility handler
   const triggerComplete = useCallback((prev: TimerState): TimerState => {
@@ -82,10 +98,28 @@ export function useTimer({ onComplete }: UseTimerOptions = {}) {
     };
   }, []);
 
-  // Load persisted state on mount
+  // Load persisted state on mount — DB active session wins over localStorage
   useEffect(() => {
+    if (activeSession) {
+      // Restore from Supabase (cross-device)
+      const elapsed = Math.floor((Date.now() - activeSession.startedAt.getTime()) / 1000);
+      const remaining = Math.max(0, activeSession.durationMinutes * 60 - elapsed);
+      if (remaining > 0) {
+        setState({
+          status: "running",
+          durationMinutes: activeSession.durationMinutes,
+          remainingSeconds: remaining,
+          label: activeSession.label,
+          notes: activeSession.notes,
+          startedAt: activeSession.startedAt,
+          sessionId: activeSession.sessionId,
+        });
+        return;
+      }
+    }
     const loaded = loadTimerState();
     setState(loaded);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist state changes
@@ -144,15 +178,19 @@ export function useTimer({ onComplete }: UseTimerOptions = {}) {
   }, [state.status, triggerComplete]);
 
   const start = useCallback(() => {
-    setState((prev) => ({
-      status: "running",
-      durationMinutes: prev.durationMinutes,
-      remainingSeconds: prev.durationMinutes * 60,
-      label: prev.label,
-      notes: prev.notes,
-      startedAt: new Date(),
-      sessionId: generateId(),
-    }));
+    const sessionId = generateId();
+    setState((prev) => {
+      onStartRef.current?.(sessionId, prev.label, prev.durationMinutes, prev.notes);
+      return {
+        status: "running",
+        durationMinutes: prev.durationMinutes,
+        remainingSeconds: prev.durationMinutes * 60,
+        label: prev.label,
+        notes: prev.notes,
+        startedAt: new Date(),
+        sessionId,
+      };
+    });
   }, []);
 
   const pause = useCallback(() => {
@@ -173,12 +211,15 @@ export function useTimer({ onComplete }: UseTimerOptions = {}) {
   }, []);
 
   const cancel = useCallback(() => {
-    setState((prev) => ({
-      ...DEFAULT_STATE,
-      durationMinutes: prev.durationMinutes,
-      label: prev.label,
-      notes: prev.notes,
-    }));
+    setState((prev) => {
+      if (prev.sessionId) onCancelRef.current?.(prev.sessionId);
+      return {
+        ...DEFAULT_STATE,
+        durationMinutes: prev.durationMinutes,
+        label: prev.label,
+        notes: prev.notes,
+      };
+    });
   }, []);
 
   const setDuration = useCallback((minutes: number) => {

@@ -1,8 +1,8 @@
-# 🍅 PomoDota — Pomodoro Quest
+# 🍅 PomoDoto
 
 > Focus hard. Earn games. Stay consistent.
 
-A mobile-first Pomodoro timer gamified for ADHD brains. Complete focus sessions, earn Dota game time, level up, and build streaks.
+A mobile-first Pomodoro timer gamified for ADHD brains. Complete focus sessions, earn Dota game time, level up, and build streaks. Fully vibecoded with Claude Sonnet 4.6
 
 ---
 

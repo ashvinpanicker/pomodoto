@@ -29,6 +29,7 @@ export function useGameState(userId: string | null) {
     todaySessions: [],
     weeklyStats: [],
     dotaSessions: [],
+    activeSession: null,
   });
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -46,12 +47,13 @@ export function useGameState(userId: string | null) {
     }
 
     try {
-      const [profileRes, sessionsRes, achievementsRes, dotaRes] = await Promise.all([
+      const [profileRes, sessionsRes, achievementsRes, dotaRes, activeRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).single(),
         supabase
           .from("sessions")
           .select("*")
           .eq("user_id", userId)
+          .eq("completed", true)
           .order("started_at", { ascending: false })
           .limit(500),
         supabase
@@ -64,12 +66,21 @@ export function useGameState(userId: string | null) {
           .eq("user_id", userId)
           .order("started_at", { ascending: false })
           .limit(50),
+        supabase
+          .from("sessions")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("completed", false)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       const profile = profileRes.data as Profile | null;
       const sessions = (sessionsRes.data ?? []) as Session[];
       const achievements = (achievementsRes.data ?? []) as Achievement[];
       const dotaSessions = (dotaRes.data ?? []) as import("@/types").DotaSession[];
+      const activeSession = (activeRes.data ?? null) as Session | null;
 
       const today = getDayKey();
       const todaySessions = sessions.filter(
@@ -78,7 +89,7 @@ export function useGameState(userId: string | null) {
 
       const weeklyStats = buildWeeklyStats(sessions);
 
-      setGameState({ profile, sessions, achievements, todaySessions, weeklyStats, dotaSessions });
+      setGameState({ profile, sessions, achievements, todaySessions, weeklyStats, dotaSessions, activeSession });
     } finally {
       setLoading(false);
     }
@@ -102,8 +113,8 @@ export function useGameState(userId: string | null) {
 
       setSaveError(null);
 
-      // Insert session
-      const { error: sessionError } = await supabase.from("sessions").insert({
+      // Upsert session — updates the existing incomplete row (from startSession) or inserts fresh
+      const { error: sessionError } = await supabase.from("sessions").upsert({
         id: sessionId,
         user_id: userId,
         label,
@@ -213,6 +224,36 @@ export function useGameState(userId: string | null) {
     [userId, gameState, fetchAll]
   );
 
+  const startSession = useCallback(
+    async (sessionId: string, label: SessionLabel, durationMinutes: number, notes: string = "") => {
+      if (!userId) return;
+      await supabase.from("sessions").insert({
+        id: sessionId,
+        user_id: userId,
+        label,
+        notes: notes.trim() || null,
+        duration: durationMinutes,
+        completed: false,
+        started_at: new Date().toISOString(),
+        xp_earned: 0,
+      });
+    },
+    [userId, supabase]
+  );
+
+  const cancelSession = useCallback(
+    async (sessionId: string) => {
+      if (!userId) return;
+      await supabase
+        .from("sessions")
+        .delete()
+        .eq("id", sessionId)
+        .eq("user_id", userId)
+        .eq("completed", false);
+    },
+    [userId, supabase]
+  );
+
   const redeemGame = useCallback(async () => {
     if (!userId || !gameState.profile) return;
     // Manual redeem — increments played count (can go negative/into debt)
@@ -236,6 +277,8 @@ export function useGameState(userId: string | null) {
     loading,
     saveError,
     newAchievements,
+    startSession,
+    cancelSession,
     completeSession,
     redeemGame,
     dismissAchievements,
