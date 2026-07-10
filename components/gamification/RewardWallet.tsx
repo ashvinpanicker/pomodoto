@@ -18,7 +18,7 @@ export function RewardWallet({ profile, onRedeem }: RewardWalletProps) {
   const [redeeming, setRedeeming] = useState(false);
   const [justRedeemed, setJustRedeemed] = useState(false);
 
-  const available = profile.dota_games_earned - profile.dota_games_redeemed;
+  const available = profile.dota_games_earned - profile.dota_games_played;
   const pomosUntilNext = getPomodorosUntilNextGame(profile.pomodoros_completed);
   const progressToNext = (POMODOROS_PER_GAME - pomosUntilNext) / POMODOROS_PER_GAME;
 
@@ -118,7 +118,7 @@ export function RewardWallet({ profile, onRedeem }: RewardWalletProps) {
           <div className="text-[10px] text-text-secondary uppercase tracking-wide mt-0.5">Earned</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <div className="text-xl font-bold text-text-secondary">{profile.dota_games_redeemed}</div>
+          <div className="text-xl font-bold text-text-secondary">{profile.dota_games_played}</div>
           <div className="text-[10px] text-text-secondary uppercase tracking-wide mt-0.5">Played</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">

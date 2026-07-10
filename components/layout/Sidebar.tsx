@@ -96,7 +96,7 @@ export function Sidebar({ profile }: SidebarProps) {
             </div>
             <div className="bg-card rounded-xl p-3 text-center">
               <div className="text-lg font-bold text-gold">
-                {profile.dota_games_earned - profile.dota_games_redeemed}
+                {profile.dota_games_earned - profile.dota_games_played}
               </div>
               <div className="text-[10px] text-text-secondary uppercase tracking-wide">Games</div>
             </div>
